@@ -11,6 +11,7 @@ with open("settings.py", "w") as fd:
     fd.write("POSTS_PER_PAGE = %s\n"%input_with_default("Posts per page", 5))
     fd.write("ADMIN_USERNAME = '%s'\n"%input_with_default("Admin username","admin"))
     fd.write("ADMIN_PASSWORD = '%s'\n"%hashlib.md5(input_with_default("Admin password","password")).hexdigest())
+    fd.write("MARKDOWN_EXTS = [%s]\n"%",".join(map(lambda x: '"'+x+'"', input_with_default("Markdown Extensions (Separated by spaces)", "").split())))
     fd.write("ANALYTICS_ID = '%s'\n"%input_with_default("Google analytics ID",""))
     fd.write('SQLALCHEMY_DATABASE_URI = "%s"\n'%input_with_default("Database URI","sqlite:///simple.db"))
     fd.write("GITHUB_USERNAME = '%s'\n"%input_with_default("Github Username", ""))

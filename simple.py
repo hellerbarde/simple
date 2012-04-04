@@ -25,7 +25,7 @@ class Post(db.Model):
     updated_at = db.Column(db.DateTime)
 
     def render_content(self):
-        return markdown.Markdown(extensions=['fenced_code'], output_format="html5", safe_mode=True).convert(self.text)
+        return markdown.Markdown(extensions=['fenced_code']+app.config["MARKDOWN_EXTS"], output_format="html5", safe_mode=True).convert(self.text)
 
 try:
     db.create_all()
