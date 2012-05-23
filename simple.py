@@ -1,19 +1,20 @@
 from functools import wraps
-import hashlib
 from flask import render_template, request, Flask, flash, redirect, url_for, abort, jsonify, Response, make_response
 import re
 from unicodedata import normalize
-from flaskext.sqlalchemy import SQLAlchemy
+from flask.ext.sqlalchemy import SQLAlchemy
 import datetime
-from unicodedata import normalize
 import markdown
 from werkzeug.security import check_password_hash
+import time
 
 app = Flask(__name__)
 app.config.from_object('settings')
 db = SQLAlchemy(app)
 
 _punct_re = re.compile(r'[\t !"#$%&\'()*\-/<=>?@\[\\\]^_`{|},.]+')
+
+markdown_parser = markdown.Markdown(extensions=['fenced_code'], output_format="html5", safe_mode=True)
 
 class Post(db.Model):
     __tablename__ = "posts"
@@ -27,19 +28,24 @@ class Post(db.Model):
     updated_at = db.Column(db.DateTime)
 
     def render_content(self):
-        return markdown.Markdown(extensions=['fenced_code']+app.config["MARKDOWN_EXTS"], output_format="html5", safe_mode=True).convert(self.text)
+        return markdown_parser.convert(self.text)
 
 try:
     db.create_all()
 except Exception:
     pass
 
+def is_admin():
+    auth = request.authorization
+    if not auth or not (auth.username == app.config["ADMIN_USERNAME"]
+                        and check_password_hash(app.config["ADMIN_PASSWORD"], auth.password)):
+        return False
+    return True
+
 def requires_authentication(f):
     @wraps(f)
     def _auth_decorator(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not (auth.username == app.config["ADMIN_USERNAME"]
-                            and check_password_hash(app.config["ADMIN_PASSWORD"], auth.password)):
+        if not is_admin():
             return Response("Could not authenticate you", 401, {"WWW-Authenticate":'Basic realm="Login Required"'})
         return f(*args, **kwargs)
 
@@ -55,7 +61,7 @@ def index():
     is_more = posts_count > ((page*app.config["POSTS_PER_PAGE"]) + app.config["POSTS_PER_PAGE"])
 
     return render_template("index.html", posts=posts, now=datetime.datetime.now(),
-                                         is_more=is_more, current_page=page)
+                                         is_more=is_more, current_page=page, is_admin=is_admin())
 
 @app.route("/<int:post_id>")
 def view_post(post_id):
@@ -67,7 +73,7 @@ def view_post(post_id):
     db.session.query(Post).filter_by(id=post_id).update({Post.views:Post.views+1})
     db.session.commit()
 
-    return render_template("view.html", post=post)
+    return render_template("view.html", post=post, is_admin=is_admin())
 
 @app.route("/<slug>")
 def view_post_slug(slug):
@@ -76,11 +82,14 @@ def view_post_slug(slug):
     except Exception:
         return abort(404)
 
-    db.session.query(Post).filter_by(slug=slug).update({Post.views:Post.views+1})
-    db.session.commit()
+    if not any(botname in request.user_agent.string for botname in ['Googlebot','Slurp','Twiceler','msnbot',
+                                                                    'KaloogaBot','YodaoBot','"Baiduspider',
+                                                                    'googlebot','Speedy Spider','DotBot']):
+        db.session.query(Post).filter_by(slug=slug).update({Post.views:Post.views+1})
+        db.session.commit()
 
     pid = request.args.get("pid", "0")
-    return render_template("view.html", post=post, pid=pid)
+    return render_template("view.html", post=post, pid=pid, is_admin=is_admin())
 
 @app.route("/new", methods=["POST", "GET"])
 @requires_authentication
