@@ -1,4 +1,6 @@
-$.fn.autogrow = function(options) {
+$.fn.autogrow = function() {
+
+    var scrollOnce = false;
 
     this.filter('textarea').each(function() {
 
@@ -25,7 +27,19 @@ $.fn.autogrow = function(options) {
                     .replace(/\n/g, '<br/>');
 
             shadow.html(val);
-            $(this).css('height', Math.max(shadow.height() + 20, minHeight));
+            var new_height = Math.max(shadow.height() + $("#publish-bar").outerHeight() + 30, minHeight);
+            var old_height = $(this).height();
+            $(this).css('height', new_height);
+            if (old_height != new_height){
+                // Hack: update is fired once on page load, so prevent auto-scrolling once.
+                if (scrollOnce == false){
+                    scrollOnce = true;
+                } else {
+                    if (($(window).scrollTop() + $(window).height()) - $(document).height() > -20){
+                        $('html, body').animate({scrollTop: $(document).height()}, 'fast')
+                    }
+                }
+            }
         }
 
         $(this).change(update).keyup(update).keydown(update);
@@ -37,24 +51,31 @@ $.fn.autogrow = function(options) {
     return this;
 };
 
-function issueSaveAjax(id, redirect){
-    var ptitle   = $("#post_title").val();
-    var pcontent = $("#post_content").val();
-    var req = $.ajax({
+function issueSaveAjax(id){
+    if (!isActive){
+        // If the window is not active do nothing, prevents useless auto-saves.
+        return
+    }
+
+    $.ajax({
         type: "POST",
         url:"/admin/save/"+id,
-        data: {title: ptitle,
-               content: pcontent}
+        data: {title: $("#post_title").val(),
+               content: $("#post_content").val()}
     });
-    req.done(function(message)
-    {
-        if (redirect)
-        {
-            var win = window.open("/preview/"+id, '_blank');
-        }
-    })
 }
 
-$(document).ready(
-        $("#post_content").autogrow()
+var isActive;
+
+$(window).focus(function(){
+    isActive = true;
+    $("#auto-save").css('color','').text('Draft');
+}).blur(function(){
+        isActive = false;
+        $("#auto-save").css('color','red').text('Draft *');
+    });
+
+$(document).ready(function() {
+        $("#post_content").autogrow();
+    }
 );

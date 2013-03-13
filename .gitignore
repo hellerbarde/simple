@@ -1,4 +1,7 @@
 *.pyc
 *.db
+*.*~
 /settings.py
-/build
+cache/
+.idea/
+envsimple/
